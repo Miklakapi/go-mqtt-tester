@@ -1,0 +1,6 @@
+{
+    "type": "binary_sensor",
+    "device_class": "motion",
+    "state": true,
+    "name": "Hall motion"
+}
