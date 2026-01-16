@@ -38,6 +38,18 @@ func main() {
 	defer w.Close()
 	w.AddWatch("./data", syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_CLOSE_WRITE|syscall.IN_MOVED_TO)
 
+loop:
+	for {
+		select {
+		case event := <-w.Events:
+			log.Println(event)
+		case err := <-w.Errors:
+			log.Println(err)
+		case <-appCtx.Done():
+			break loop
+		}
+	}
+
 	<-appCtx.Done()
 	log.Println("shutdown signal received")
 }
