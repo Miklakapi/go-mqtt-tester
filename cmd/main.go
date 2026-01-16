@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/Miklakapi/go-mqtt-tester/internal/config"
+	"github.com/Miklakapi/go-mqtt-tester/internal/watcher"
 )
 
 func main() {
@@ -29,6 +30,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	w, err := watcher.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer w.Close()
+	w.AddWatch("./data", syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_CLOSE_WRITE|syscall.IN_MOVED_TO)
 
 	<-appCtx.Done()
 	log.Println("shutdown signal received")
