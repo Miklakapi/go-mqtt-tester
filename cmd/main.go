@@ -36,12 +36,15 @@ func main() {
 		log.Fatal(err)
 	}
 	defer w.Close()
-	w.AddWatch("./data", syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_CLOSE_WRITE|syscall.IN_MOVED_TO)
+	w.AddWatch("./data", syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_MOVED_TO|syscall.IN_CLOSE_WRITE)
 
 loop:
 	for {
 		select {
 		case event := <-w.Events:
+			if event.Mask&syscall.IN_ISDIR != 0 {
+				continue
+			}
 			log.Println(event)
 		case err := <-w.Errors:
 			log.Println(err)
