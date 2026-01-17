@@ -26,7 +26,7 @@ func main() {
 	log.SetOutput(mw)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	_, err = config.Load()
+	conf, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer w.Close()
-	w.AddWatch("./data", syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_MOVED_TO|syscall.IN_CLOSE_WRITE)
+	w.AddWatch(conf.DataDir, syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_MOVED_TO|syscall.IN_CLOSE_WRITE)
 
 loop:
 	for {
