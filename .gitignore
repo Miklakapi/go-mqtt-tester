@@ -6,3 +6,4 @@ bin
 *.db
 *.log
 *.logs
+.env
