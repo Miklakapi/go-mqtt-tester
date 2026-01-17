@@ -51,10 +51,11 @@ func main() {
 	o.SetKeepAlive(30 * time.Second)
 	o.SetPingTimeout(10 * time.Second)
 
-	_, err = mqtt.New(o)
+	mq, err := mqtt.New(o)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer mq.Close()
 
 	w, err := watcher.New()
 	if err != nil {

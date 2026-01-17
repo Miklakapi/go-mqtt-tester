@@ -32,3 +32,7 @@ func New(o *MQTT.ClientOptions) (*MQTTClient, error) {
 		client: client,
 	}, nil
 }
+
+func (m *MQTTClient) Close() {
+	m.client.Disconnect(250)
+}
