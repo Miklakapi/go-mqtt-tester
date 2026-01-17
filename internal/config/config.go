@@ -14,7 +14,7 @@ type Config struct {
 	MqttClientId   string
 
 	MqttDiscoveryPrefix string
-	MattStatePrefix     string
+	MqttStatePrefix     string
 
 	HaDeviceId           string
 	HaDeviceName         string
@@ -45,7 +45,7 @@ func Load() (Config, error) {
 	cfg.MqttClientId = getEnvDefault("MQTT_CLIENT_ID", "go-mqtt-tester")
 
 	cfg.MqttDiscoveryPrefix = getEnvDefault("MQTT_DISCOVERY_PREFIX", "homeassistant")
-	cfg.MattStatePrefix = getEnvDefault("MQTT_STATE_PREFIX", "go-mqtt-tester")
+	cfg.MqttStatePrefix = getEnvDefault("MQTT_STATE_PREFIX", "go-mqtt-tester")
 
 	cfg.HaDeviceId = getEnvDefault("HA_DEVICE_ID", "go-mqtt-tester")
 	cfg.HaDeviceName = getEnvDefault("HA_DEVICE_NAME", "Go MQTT Tester")
