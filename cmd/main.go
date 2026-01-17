@@ -7,9 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Miklakapi/go-mqtt-tester/internal/config"
+	"github.com/Miklakapi/go-mqtt-tester/internal/mqtt"
 	"github.com/Miklakapi/go-mqtt-tester/internal/watcher"
+
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
 func main() {
@@ -27,6 +31,27 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	conf, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	o := MQTT.NewClientOptions()
+	brokerURL := "tcp://" + conf.MqttBrokerHost + ":" + conf.MqttBrokerPort
+	o.AddBroker(brokerURL)
+
+	o.SetClientID(conf.MqttClientId)
+	o.SetUsername(conf.MqttUsername)
+	o.SetPassword(conf.MqttPassword)
+
+	o.SetCleanSession(true)
+	o.SetAutoReconnect(true)
+	o.SetConnectRetry(true)
+
+	o.SetConnectTimeout(10 * time.Second)
+	o.SetKeepAlive(30 * time.Second)
+	o.SetPingTimeout(10 * time.Second)
+
+	_, err = mqtt.New(o)
 	if err != nil {
 		log.Fatal(err)
 	}
