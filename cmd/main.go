@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Miklakapi/go-mqtt-tester/internal/config"
+	"github.com/Miklakapi/go-mqtt-tester/internal/controller"
 	"github.com/Miklakapi/go-mqtt-tester/internal/mqtt"
 	"github.com/Miklakapi/go-mqtt-tester/internal/watcher"
 
@@ -62,23 +63,24 @@ func main() {
 		log.Fatal(err)
 	}
 	defer w.Close()
-	w.AddWatch(conf.DataDir, syscall.IN_DELETE|syscall.IN_MOVED_FROM|syscall.IN_MOVED_TO|syscall.IN_CLOSE_WRITE)
 
-loop:
-	for {
-		select {
-		case event := <-w.Events:
-			if event.Mask&syscall.IN_ISDIR != 0 {
-				continue
-			}
-			log.Println(event)
-		case err := <-w.Errors:
-			log.Println(err)
-		case <-appCtx.Done():
-			break loop
-		}
+	s := controller.Settings{
+		DiscoveryPrefix:    conf.MqttDiscoveryPrefix,
+		StatePrefix:        conf.MqttStatePrefix,
+		DeviceID:           conf.HaDeviceId,
+		DeviceName:         conf.HaDeviceName,
+		DeviceManufacturer: conf.HaDeviceManufacturer,
+		DeviceModel:        conf.HaDeviceModel,
+		DataDir:            conf.DataDir,
 	}
 
-	<-appCtx.Done()
+	c, err := controller.New(w, mq, s)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := c.Run(appCtx); err != nil {
+		log.Fatal(err)
+	}
+
 	log.Println("shutdown signal received")
 }
