@@ -24,7 +24,6 @@ type Watcher struct {
 
 	mu   sync.Mutex
 	once sync.Once
-	wg   sync.WaitGroup
 }
 
 type Event struct {
@@ -47,14 +46,14 @@ func New() (*Watcher, error) {
 		Errors: make(chan error, 16),
 		done:   make(chan struct{}),
 	}
-	w.wg.Add(1)
 	go w.run()
 
 	return w, nil
 }
 
 func (w *Watcher) run() {
-	defer w.wg.Done()
+	defer close(w.Events)
+	defer close(w.Errors)
 
 	var buffer [syscall.SizeofInotifyEvent * 1024]byte
 
@@ -65,7 +64,9 @@ func (w *Watcher) run() {
 			if err == syscall.EINTR {
 				continue
 			}
-
+			if err == syscall.EBADF && w.isDone() {
+				return
+			}
 			if w.isDone() {
 				return
 			}
@@ -167,10 +168,6 @@ func (w *Watcher) Close() {
 
 		_ = syscall.Close(w.fd)
 	})
-
-	w.wg.Wait()
-	close(w.Events)
-	close(w.Errors)
 }
 
 func (w *Watcher) emitError(err error) {
