@@ -33,6 +33,12 @@ func New(o *MQTT.ClientOptions) (*MQTTClient, error) {
 	}, nil
 }
 
+func (m *MQTTClient) Publish(topic string, qos byte, retain bool, payload []byte) error {
+	token := m.client.Publish(topic, qos, retain, payload)
+	token.Wait()
+	return token.Error()
+}
+
 func (m *MQTTClient) Close() {
 	m.client.Disconnect(250)
 }

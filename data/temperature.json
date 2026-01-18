@@ -1,7 +1,9 @@
 {
-    "type": "sensor",
-    "device_class": "temperature",
-    "unit_of_measurement": "°C",
-    "state": 23.7,
-    "name": "Outside temperature"
+    "config": {
+        "component": "sensor",
+        "name": "Outside Temperature",
+        "device_class": "temperature",
+        "unit_of_measurement": "°C"
+    },
+    "state": 23.7
 }
