@@ -1,8 +1,8 @@
 {
     "config": {
-        "component": "binary_sensor",
-        "name": "Hall Motion",
+        "name": "Hall Motion Test",
         "device_class": "motion"
     },
-    "state": true
+    "component": "binary_sensor",
+    "state": "ON"
 }

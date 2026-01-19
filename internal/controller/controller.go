@@ -18,6 +18,8 @@ type Controller struct {
 	watcher  *watcher.Watcher
 	mqtt     *mqtt.MQTTClient
 	settings Settings
+
+	device map[string]any
 }
 
 type Settings struct {
@@ -40,8 +42,9 @@ type fileData struct {
 }
 
 type fileContent struct {
-	Config map[string]any `json:"config"`
-	State  any            `json:"state"`
+	Config    map[string]any `json:"config"`
+	Component string         `json:"component"`
+	State     any            `json:"state"`
 }
 
 func New(watcher *watcher.Watcher, mqtt *mqtt.MQTTClient, settings Settings) (*Controller, error) {
@@ -71,6 +74,12 @@ func New(watcher *watcher.Watcher, mqtt *mqtt.MQTTClient, settings Settings) (*C
 		watcher:  watcher,
 		mqtt:     mqtt,
 		settings: settings,
+		device: map[string]any{
+			"identifiers":  []string{settings.DeviceID},
+			"name":         settings.DeviceName,
+			"manufacturer": settings.DeviceManufacturer,
+			"model":        settings.DeviceModel,
+		},
 	}, nil
 }
 
@@ -99,18 +108,25 @@ func (c *Controller) Run(ctx context.Context) error {
 				continue
 			}
 
-			statePayload, err := json.Marshal(fileData.data.State)
-			if err != nil {
-				log.Println("state marshal error:", err)
-				continue
+			var statePayload []byte
+			if fileData.data.Component == "binary_sensor" {
+				s, ok := fileData.data.State.(string)
+				if !ok {
+					log.Println("binary_sensor state must be string ON/OFF in", fileData.name)
+					continue
+				}
+				statePayload = []byte(s)
+			} else {
+				var err error
+				statePayload, err = json.Marshal(fileData.data.State)
+				if err != nil {
+					log.Println("state marshal error:", err)
+					continue
+				}
 			}
-			// TODO
-			log.Println(string(configPayload))
-			log.Println(string(statePayload))
-			// Publish config
-			// c.mqtt.Publish("", 0, false, "")
-			// Publish state
-			// c.mqtt.Publish("", 0, false, "")
+
+			c.publishConfig(fileData, configPayload)
+			c.publishState(fileData, statePayload)
 		case err := <-c.watcher.Errors:
 			log.Println(err)
 		case <-ctx.Done():
@@ -133,8 +149,9 @@ func (c *Controller) getFileData(event watcher.Event) (fileData, error) {
 		return fileData{}, fmt.Errorf("%w: %s: %w", ErrInvalidJSON, path, err)
 	}
 
-	content.Config["unique_id"] = c.settings.DeviceID + "_" + sensorID
+	content.Config["unique_id"] = c.settings.DeviceID + "_" + content.Component + "_" + sensorID
 	content.Config["state_topic"] = c.stateTopic(sensorID)
+	content.Config["device"] = c.device
 
 	return fileData{
 		name:     event.Name,
@@ -144,22 +161,26 @@ func (c *Controller) getFileData(event watcher.Event) (fileData, error) {
 	}, nil
 }
 
+func (c *Controller) publishConfig(f fileData, payload []byte) error {
+	topic := c.configTopic(f.data.Component, f.sensorID)
+	return c.mqtt.Publish(topic, 0, false, payload)
+}
+
+func (c *Controller) publishState(f fileData, payload []byte) error {
+	topic := c.stateTopic(f.sensorID)
+	return c.mqtt.Publish(topic, 0, false, payload)
+}
+
+func (c *Controller) configTopic(component, sensorID string) string {
+	return fmt.Sprintf("%s/%s/%s/%s/config", c.settings.DiscoveryPrefix, component, c.settings.DeviceID, sensorID)
+}
+
 func (c *Controller) stateTopic(sensorID string) string {
 	return fmt.Sprintf("%s/%s/state", c.settings.StatePrefix, sensorID)
 }
 
-// func (c *Controller) configTopic(component, sensorID string) string {
-// 	return fmt.Sprintf("%s/%s/%s/%s/config", c.settings.DiscoveryPrefix, component, c.settings.DeviceID, sensorID)
-// }
-
 func validateFile(f fileData) bool {
-	componentAny, ok := f.data.Config["component"]
-	if !ok {
-		log.Println("missing config.component in", f.name)
-		return false
-	}
-	component, ok := componentAny.(string)
-	if !ok || component == "" {
+	if f.data.Component == "" {
 		log.Println("invalid config.component in", f.name)
 		return false
 	}

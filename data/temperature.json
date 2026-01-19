@@ -1,9 +1,9 @@
 {
     "config": {
-        "component": "sensor",
-        "name": "Outside Temperature",
+        "name": "Outside Temperature Test",
         "device_class": "temperature",
         "unit_of_measurement": "°C"
     },
-    "state": 23.7
+    "component": "sensor",
+    "state": 23.9
 }
