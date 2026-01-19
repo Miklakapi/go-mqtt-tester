@@ -33,7 +33,7 @@ type Settings struct {
 }
 
 type fileData struct {
-	fileName string
+	name     string
 	sensorID string
 	path     string
 	data     fileContent
@@ -88,7 +88,25 @@ func (c *Controller) Run(ctx context.Context) error {
 				log.Println(err)
 				continue
 			}
-			log.Println(fileData)
+
+			if !validateFile(fileData) {
+				continue
+			}
+
+			configPayload, err := json.Marshal(fileData.data.Config)
+			if err != nil {
+				log.Println("config marshal error:", err)
+				continue
+			}
+
+			statePayload, err := json.Marshal(fileData.data.State)
+			if err != nil {
+				log.Println("state marshal error:", err)
+				continue
+			}
+			// TODO
+			log.Println(string(configPayload))
+			log.Println(string(statePayload))
 			// Publish config
 			// c.mqtt.Publish("", 0, false, "")
 			// Publish state
@@ -115,10 +133,36 @@ func (c *Controller) getFileData(event watcher.Event) (fileData, error) {
 		return fileData{}, fmt.Errorf("%w: %s: %w", ErrInvalidJSON, path, err)
 	}
 
+	content.Config["unique_id"] = c.settings.DeviceID + "_" + sensorID
+	content.Config["state_topic"] = c.stateTopic(sensorID)
+
 	return fileData{
-		fileName: event.Name,
+		name:     event.Name,
 		sensorID: sensorID,
 		path:     path,
 		data:     content,
 	}, nil
+}
+
+func (c *Controller) stateTopic(sensorID string) string {
+	return fmt.Sprintf("%s/%s/state", c.settings.StatePrefix, sensorID)
+}
+
+// func (c *Controller) configTopic(component, sensorID string) string {
+// 	return fmt.Sprintf("%s/%s/%s/%s/config", c.settings.DiscoveryPrefix, component, c.settings.DeviceID, sensorID)
+// }
+
+func validateFile(f fileData) bool {
+	componentAny, ok := f.data.Config["component"]
+	if !ok {
+		log.Println("missing config.component in", f.name)
+		return false
+	}
+	component, ok := componentAny.(string)
+	if !ok || component == "" {
+		log.Println("invalid config.component in", f.name)
+		return false
+	}
+
+	return true
 }
