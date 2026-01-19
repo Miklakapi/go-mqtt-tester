@@ -10,4 +10,7 @@ var (
 	ErrMissingDeviceManufacturer = errors.New("missing device manufacturer")
 	ErrMissingDeviceModel        = errors.New("missing device model")
 	ErrMissingDataDir            = errors.New("missing data dir")
+
+	ErrReadFile    = errors.New("failed to read data file")
+	ErrInvalidJSON = errors.New("invalid json file")
 )
