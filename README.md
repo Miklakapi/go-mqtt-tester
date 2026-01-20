@@ -1,4 +1,4 @@
-# Go-File-Share
+# Go-MQTT-Tester
 
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![linux](https://img.shields.io/badge/os-Linux-green)
