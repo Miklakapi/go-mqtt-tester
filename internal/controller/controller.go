@@ -184,6 +184,14 @@ func validateFile(f fileData) bool {
 		log.Println("invalid config.component in", f.name)
 		return false
 	}
+	if f.data.Config["name"] == "" || f.data.Config["name"] == nil {
+		log.Println("invalid config.component in", f.name)
+		return false
+	}
+	if f.data.Config["device_class"] == "" || f.data.Config["device_class"] == nil {
+		log.Println("invalid config.component in", f.name)
+		return false
+	}
 
 	return true
 }
