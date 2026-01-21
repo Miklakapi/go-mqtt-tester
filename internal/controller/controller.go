@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/Miklakapi/go-mqtt-tester/internal/mqtt"
@@ -20,6 +21,9 @@ type Controller struct {
 	settings Settings
 
 	device map[string]any
+
+	mu      sync.Mutex
+	sensors map[sensorKey]struct{}
 }
 
 type Settings struct {
@@ -45,6 +49,11 @@ type fileContent struct {
 	Config    map[string]any `json:"config"`
 	Component string         `json:"component"`
 	State     any            `json:"state"`
+}
+
+type sensorKey struct {
+	component string
+	sensorID  string
 }
 
 func New(watcher *watcher.Watcher, mqtt *mqtt.MQTTClient, settings Settings) (*Controller, error) {
@@ -80,6 +89,7 @@ func New(watcher *watcher.Watcher, mqtt *mqtt.MQTTClient, settings Settings) (*C
 			"manufacturer": settings.DeviceManufacturer,
 			"model":        settings.DeviceModel,
 		},
+		sensors: make(map[sensorKey]struct{}),
 	}, nil
 }
 
@@ -120,6 +130,7 @@ func (c *Controller) Init() error {
 			continue
 		}
 
+		c.rememberSensor(f.data.Component, f.sensorID)
 		if err := c.publishConfig(f, configPayload); err != nil {
 			log.Println("publish config error:", err)
 		}
@@ -140,33 +151,34 @@ func (c *Controller) Run(ctx context.Context) error {
 			if event.Mask&syscall.IN_ISDIR != 0 {
 				continue
 			}
-			fileData, err := c.getFileData(event.Name)
+			f, err := c.getFileData(event.Name)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
 
-			if err := validateFile(fileData); err != nil {
+			if err := validateFile(f); err != nil {
 				log.Println(err)
 				continue
 			}
 
-			configPayload, err := json.Marshal(fileData.data.Config)
+			configPayload, err := json.Marshal(f.data.Config)
 			if err != nil {
 				log.Println("config marshal error:", err)
 				continue
 			}
 
-			statePayload, err := buildStatePayload(fileData)
+			statePayload, err := buildStatePayload(f)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
 
-			if err := c.publishConfig(fileData, configPayload); err != nil {
+			c.rememberSensor(f.data.Component, f.sensorID)
+			if err := c.publishConfig(f, configPayload); err != nil {
 				log.Println("publish config error:", err)
 			}
-			if err := c.publishState(fileData, statePayload); err != nil {
+			if err := c.publishState(f, statePayload); err != nil {
 				log.Println("publish state error:", err)
 			}
 
@@ -174,7 +186,22 @@ func (c *Controller) Run(ctx context.Context) error {
 			log.Println(err)
 
 		case <-ctx.Done():
+			c.close()
 			return nil
+		}
+	}
+}
+
+func (c *Controller) close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for k := range c.sensors {
+		if err := c.removeConfig(k.component, k.sensorID); err != nil {
+			log.Println("remove config error:", err)
+		}
+		if err := c.removeState(k.sensorID); err != nil {
+			log.Println("remove state error:", err)
 		}
 	}
 }
@@ -215,12 +242,28 @@ func (c *Controller) publishState(f fileData, payload []byte) error {
 	return c.mqtt.Publish(topic, 0, false, payload)
 }
 
+func (c *Controller) removeConfig(component, sensorID string) error {
+	topic := c.configTopic(component, sensorID)
+	return c.mqtt.Publish(topic, 0, false, []byte{})
+}
+
+func (c *Controller) removeState(sensorID string) error {
+	topic := c.stateTopic(sensorID)
+	return c.mqtt.Publish(topic, 0, false, []byte{})
+}
+
 func (c *Controller) configTopic(component, sensorID string) string {
 	return fmt.Sprintf("%s/%s/%s/%s/config", c.settings.DiscoveryPrefix, component, c.settings.DeviceID, sensorID)
 }
 
 func (c *Controller) stateTopic(sensorID string) string {
 	return fmt.Sprintf("%s/%s/state", c.settings.StatePrefix, sensorID)
+}
+
+func (c *Controller) rememberSensor(component, sensorID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sensors[sensorKey{component: component, sensorID: sensorID}] = struct{}{}
 }
 
 func validateFile(f fileData) error {
