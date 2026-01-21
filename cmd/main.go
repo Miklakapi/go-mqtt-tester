@@ -78,6 +78,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if c.Init() != nil {
+		log.Fatal(err)
+	}
 	if err := c.Run(appCtx); err != nil {
 		log.Fatal(err)
 	}

@@ -163,8 +163,12 @@ func (c *Controller) Run(ctx context.Context) error {
 				continue
 			}
 
-			c.publishConfig(fileData, configPayload)
-			c.publishState(fileData, statePayload)
+			if err := c.publishConfig(fileData, configPayload); err != nil {
+				log.Println("publish config error:", err)
+			}
+			if err := c.publishState(fileData, statePayload); err != nil {
+				log.Println("publish state error:", err)
+			}
 
 		case err := <-c.watcher.Errors:
 			log.Println(err)
