@@ -135,6 +135,7 @@ func (c *Controller) Init() error {
 		if err := c.publishConfig(f, configPayload); err != nil {
 			log.Println("publish config error:", err)
 		}
+		time.Sleep(250 * time.Millisecond)
 		if err := c.publishState(f, statePayload); err != nil {
 			log.Println("publish state error:", err)
 		}
@@ -185,7 +186,6 @@ func (c *Controller) Run(ctx context.Context) error {
 			if err := c.publishConfig(f, configPayload); err != nil {
 				log.Println("publish config error:", err)
 			}
-			time.Sleep(250 * time.Millisecond)
 			if err := c.publishState(f, statePayload); err != nil {
 				log.Println("publish state error:", err)
 			}
