@@ -22,8 +22,8 @@ type Controller struct {
 
 	device map[string]any
 
-	mu      sync.Mutex
-	sensors map[sensorKey]struct{}
+	mu    sync.Mutex
+	files map[string]sensorKey
 }
 
 type Settings struct {
@@ -89,7 +89,7 @@ func New(watcher *watcher.Watcher, mqtt *mqtt.MQTTClient, settings Settings) (*C
 			"manufacturer": settings.DeviceManufacturer,
 			"model":        settings.DeviceModel,
 		},
-		sensors: make(map[sensorKey]struct{}),
+		files: make(map[string]sensorKey),
 	}, nil
 }
 
@@ -130,7 +130,7 @@ func (c *Controller) Init() error {
 			continue
 		}
 
-		c.rememberSensor(f.data.Component, f.sensorID)
+		c.rememberSensor(f.name, f.data.Component, f.sensorID)
 		if err := c.publishConfig(f, configPayload); err != nil {
 			log.Println("publish config error:", err)
 		}
@@ -151,6 +151,12 @@ func (c *Controller) Run(ctx context.Context) error {
 			if event.Mask&syscall.IN_ISDIR != 0 {
 				continue
 			}
+
+			if event.Mask&(syscall.IN_DELETE|syscall.IN_MOVED_FROM) != 0 {
+				c.handleRemoveByFilename(event.Name)
+				continue
+			}
+
 			f, err := c.getFileData(event.Name)
 			if err != nil {
 				log.Println(err)
@@ -174,7 +180,7 @@ func (c *Controller) Run(ctx context.Context) error {
 				continue
 			}
 
-			c.rememberSensor(f.data.Component, f.sensorID)
+			c.rememberSensor(f.name, f.data.Component, f.sensorID)
 			if err := c.publishConfig(f, configPayload); err != nil {
 				log.Println("publish config error:", err)
 			}
@@ -196,13 +202,27 @@ func (c *Controller) close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for k := range c.sensors {
-		if err := c.removeConfig(k.component, k.sensorID); err != nil {
+	for _, f := range c.files {
+		if err := c.removeConfig(f.component, f.sensorID); err != nil {
 			log.Println("remove config error:", err)
 		}
-		if err := c.removeState(k.sensorID); err != nil {
+		if err := c.removeState(f.sensorID); err != nil {
 			log.Println("remove state error:", err)
 		}
+	}
+}
+
+func (c *Controller) handleRemoveByFilename(name string) {
+	k, ok := c.forgetFileSensor(name)
+	if !ok {
+		return
+	}
+
+	if err := c.removeConfig(k.component, k.sensorID); err != nil {
+		log.Println("remove config error:", err)
+	}
+	if err := c.removeState(k.sensorID); err != nil {
+		log.Println("remove state error:", err)
 	}
 }
 
@@ -260,10 +280,22 @@ func (c *Controller) stateTopic(sensorID string) string {
 	return fmt.Sprintf("%s/%s/state", c.settings.StatePrefix, sensorID)
 }
 
-func (c *Controller) rememberSensor(component, sensorID string) {
+func (c *Controller) rememberSensor(filename, component, sensorID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.sensors[sensorKey{component: component, sensorID: sensorID}] = struct{}{}
+	c.files[filename] = sensorKey{component: component, sensorID: sensorID}
+}
+
+func (c *Controller) forgetFileSensor(filename string) (sensorKey, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	k, ok := c.files[filename]
+	if !ok {
+		return sensorKey{}, false
+	}
+	delete(c.files, filename)
+	return k, true
 }
 
 func validateFile(f fileData) error {
