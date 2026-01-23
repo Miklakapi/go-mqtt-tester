@@ -1,5 +1,4 @@
-go-file-share
-node_modules
+go-mqtt-tester
 *.exe
 uploads
 bin
